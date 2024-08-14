@@ -20,6 +20,8 @@ def generate_mock_data(num_players=10, num_days=100):
                 'date': d,
                 'bat_speed': np.random.normal(70, 5),
                 'top_8th_ev': np.random.normal(95, 3),
+                'expected_top_8th_ev': np.random.normal(97, 2),  # New metric
+                'expected_top_8th_la': np.random.normal(25, 3),  # New metric
                 'smash_factor': np.random.normal(1.4, 0.1),
                 'attack_angle': np.random.normal(15, 5),
                 'attack_angle_range': np.random.normal(5, 2),
@@ -60,10 +62,15 @@ def player_trends(df):
     col4.metric("Top 8th EV", f"{player_data['top_8th_ev'].mean():.2f}")
     col5.metric("Avg Swing Decision", f"{player_data['swing_decision'].mean():.3f}")
     
+    # New metrics
+    col6, col7 = st.columns(2)
+    col6.metric("Expected Top 8th EV", f"{player_data['expected_top_8th_ev'].mean():.2f}")
+    col7.metric("Expected Top 8th LA", f"{player_data['expected_top_8th_la'].mean():.2f}")
+    
     # Metric Graphs and Gains/Losses
     st.subheader("Metric Trends and Gains/Losses")
-    metrics = ['bat_speed', 'top_8th_ev', 'smash_factor', 'attack_angle', 'attack_angle_range', 'point_of_contact', 'swing_plus', 'swing_decision']
-    selected_metrics = st.multiselect("Select metrics to display", metrics, default=['bat_speed'])
+    metrics = ['bat_speed', 'top_8th_ev', 'expected_top_8th_ev', 'expected_top_8th_la', 'smash_factor', 'attack_angle', 'attack_angle_range', 'point_of_contact', 'swing_plus', 'swing_decision']
+    selected_metrics = st.multiselect("Select metrics to display", metrics, default=['bat_speed', 'expected_top_8th_ev', 'expected_top_8th_la'])
     
     # Create two columns
     col1, col2 = st.columns([3, 1])
@@ -112,21 +119,23 @@ def in_gym_trends(df):
     
     # Overall Gym Performance
     st.subheader("Overall Gym Performance")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Avg Bat Speed", f"{gym_data['bat_speed'].mean():.2f}")
     col2.metric("Avg Exit Velo", f"{gym_data['exit_velo'].mean():.2f}")
     col3.metric("Avg Smash Factor", f"{gym_data['smash_factor'].mean():.2f}")
+    col4.metric("Avg Expected Top 8th EV", f"{gym_data['expected_top_8th_ev'].mean():.2f}")
+    col5.metric("Avg Expected Top 8th LA", f"{gym_data['expected_top_8th_la'].mean():.2f}")
     
     # Leaderboards
     st.subheader("Leaderboards")
     leaderboard_metric = st.selectbox("Select Leaderboard", 
-                                      ['distance', 'exit_velo', 'top_8th_ev', 'bat_speed', 'smash_factor', 'swing_plus'])
+                                      ['distance', 'exit_velo', 'top_8th_ev', 'expected_top_8th_ev', 'expected_top_8th_la', 'bat_speed', 'smash_factor', 'swing_plus'])
     leaderboard = gym_data.groupby('player')[leaderboard_metric].mean().sort_values(ascending=False).head(10)
     st.bar_chart(leaderboard)
     
     # Trend Graphs
     st.subheader("Gym-wide Trends")
-    metrics = ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus']
+    metrics = ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'expected_top_8th_ev', 'expected_top_8th_la']
     fig = go.Figure()
     for metric in metrics:
         trend = gym_data.groupby('date')[metric].mean()
@@ -167,16 +176,16 @@ def trainer_trends(df):
     selected_trainer = st.selectbox("Select Trainer", df_filtered['trainer'].unique())
     trainer_data = df_filtered[df_filtered['trainer'] == selected_trainer]
     
-    metric = st.selectbox("Select metric", ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision'])
+    metric = st.selectbox("Select metric", ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision', 'expected_top_8th_ev', 'expected_top_8th_la'])
     improvement = trainer_data.groupby(['player', 'date'])[metric].mean().unstack(level=0)
     fig = px.line(improvement, x=improvement.index, y=improvement.columns, title=f"Athlete {metric.replace('_', ' ').title()} Improvement")
     st.plotly_chart(fig)
     
     # Calculate overall averages
-    overall_avg = df_filtered[['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision']].mean()
+    overall_avg = df_filtered[['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision', 'expected_top_8th_ev', 'expected_top_8th_la']].mean()
     
     # Calculate trainer averages
-    trainer_avg = df_filtered.groupby('trainer')[['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision']].mean()
+    trainer_avg = df_filtered.groupby('trainer')[['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision', 'expected_top_8th_ev', 'expected_top_8th_la']].mean()
     
     # Calculate percentage difference from overall average
     trainer_performance = (trainer_avg - overall_avg) / overall_avg * 100
@@ -213,7 +222,7 @@ def trainer_trends(df):
     
     # Trainer Performance by Athlete Level
     st.subheader("Trainer Performance by Athlete Level")
-    level_metric = st.selectbox("Select metric for level comparison", ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision'], key='level_metric')
+    level_metric = st.selectbox("Select metric for level comparison", ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision', 'expected_top_8th_ev', 'expected_top_8th_la'], key='level_metric')
     trainer_level_performance = df_filtered.groupby(['trainer', 'level'])[level_metric].mean().unstack(level=1)
     st.bar_chart(trainer_level_performance)
 
