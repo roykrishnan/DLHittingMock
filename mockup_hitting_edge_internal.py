@@ -98,7 +98,7 @@ def in_gym_trends(df):
     
     # Sidebar
     level = st.sidebar.multiselect("Select Level", ['Youth', 'High School', 'College', 'Professional'], default=['High School'])
-    gym = st.sidebar.multiselect("Select Gym", ['WA', 'AZ', 'FL'], default=['WA', 'AZ', 'FL'])
+    gym = st.sidebar.multiselect("Select Gym", ['WA', 'AZ', 'FL', 'Remote'], default=['WA', 'AZ', 'FL','Remote'])
     min_date = df['date'].min().date()
     max_date = df['date'].max().date()
     start_date = st.sidebar.date_input("Start Date", min_date)
