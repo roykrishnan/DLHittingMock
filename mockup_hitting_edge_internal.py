@@ -28,7 +28,8 @@ def generate_mock_data(num_players=10, num_days=100):
                 'swing_decision': np.random.choice([0, 1]),  # 0 for bad, 1 for good
                 'distance': np.random.normal(300, 50),
                 'exit_velo': np.random.normal(90, 5),
-                'level': np.random.choice(['Beginner', 'Intermediate', 'Advanced']),
+                'level': np.random.choice(['Youth', 'High School', 'College', 'Professional']),
+                'gym': np.random.choice(['WA', 'AZ', 'FL']),
                 'trainer': np.random.choice(['Trainer A', 'Trainer B', 'Trainer C'])
             })
     
@@ -96,14 +97,16 @@ def in_gym_trends(df):
     st.header("In-Gym Trends")
     
     # Sidebar
-    level = st.sidebar.selectbox("Select Level", df['level'].unique())
+    level = st.sidebar.multiselect("Select Level", ['Youth', 'High School', 'College', 'Professional'], default=['High School'])
+    gym = st.sidebar.multiselect("Select Gym", ['WA', 'AZ', 'FL'], default=['WA', 'AZ', 'FL'])
     min_date = df['date'].min().date()
     max_date = df['date'].max().date()
     start_date = st.sidebar.date_input("Start Date", min_date)
     end_date = st.sidebar.date_input("End Date", max_date)
     
     # Filter data
-    gym_data = df[(df['level'] == level) & 
+    gym_data = df[(df['level'].isin(level)) & 
+                  (df['gym'].isin(gym)) &
                   (df['date'].dt.date >= start_date) & 
                   (df['date'].dt.date <= end_date)]
     
@@ -131,6 +134,12 @@ def in_gym_trends(df):
     fig.update_layout(title="Gym-wide Trends Over Time", xaxis_title="Date", yaxis_title="Value")
     st.plotly_chart(fig)
 
+    # Gym Comparison
+    st.subheader("Gym Comparison")
+    comparison_metric = st.selectbox("Select Metric for Gym Comparison", metrics)
+    gym_comparison = gym_data.groupby('gym')[comparison_metric].mean().sort_values(ascending=False)
+    st.bar_chart(gym_comparison)
+
 # Trainer Trends Page
 def trainer_trends(df):
     st.header("Trainer Performance Comparison")
@@ -141,8 +150,27 @@ def trainer_trends(df):
     start_date = st.sidebar.date_input("Start Date", min_date)
     end_date = st.sidebar.date_input("End Date", max_date)
     
-    # Filter data by date
-    df_filtered = df[(df['date'].dt.date >= start_date) & (df['date'].dt.date <= end_date)]
+    # Level filter in sidebar
+    use_level_filter = st.sidebar.checkbox("Filter by Athlete Level", value=False)
+    if use_level_filter:
+        levels = st.sidebar.multiselect("Select Athlete Levels", ['Youth', 'High School', 'College', 'Professional'], default=['High School', 'College'])
+    else:
+        levels = ['Youth', 'High School', 'College', 'Professional']
+    
+    # Filter data by date and level
+    df_filtered = df[(df['date'].dt.date >= start_date) & 
+                     (df['date'].dt.date <= end_date) & 
+                     (df['level'].isin(levels))]
+    
+    # Individual Athlete Improvement (first section)
+    st.subheader("Individual Athlete Improvement")
+    selected_trainer = st.selectbox("Select Trainer", df_filtered['trainer'].unique())
+    trainer_data = df_filtered[df_filtered['trainer'] == selected_trainer]
+    
+    metric = st.selectbox("Select metric", ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision'])
+    improvement = trainer_data.groupby(['player', 'date'])[metric].mean().unstack(level=0)
+    fig = px.line(improvement, x=improvement.index, y=improvement.columns, title=f"Athlete {metric.replace('_', ' ').title()} Improvement")
+    st.plotly_chart(fig)
     
     # Calculate overall averages
     overall_avg = df_filtered[['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision']].mean()
@@ -153,19 +181,8 @@ def trainer_trends(df):
     # Calculate percentage difference from overall average
     trainer_performance = (trainer_avg - overall_avg) / overall_avg * 100
     
-    # Display trainer performance
-    st.subheader("Trainer Performance (% difference from overall average)")
-    st.dataframe(trainer_performance.style.format("{:.2f}%"))
-    
-    # Identify best performing trainer for each metric
-    best_trainers = trainer_performance.idxmax()
-    st.subheader("Best Performing Trainers")
-    for metric, trainer in best_trainers.items():
-        st.write(f"{metric.replace('_', ' ').title()}: {trainer} (+{trainer_performance.loc[trainer, metric]:.2f}%)")
-    
-    # Visualize trainer performance
+    # Visualize trainer performance (original view)
     st.subheader("Trainer Performance Visualization")
-    metric = st.selectbox("Select metric", ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision'])
     
     fig = go.Figure()
     for trainer in trainer_performance.index:
@@ -182,14 +199,23 @@ def trainer_trends(df):
     )
     st.plotly_chart(fig)
     
-    # Athlete Improvement Graphs
-    st.subheader("Individual Athlete Improvement")
-    selected_trainer = st.selectbox("Select Trainer", df['trainer'].unique())
-    trainer_data = df_filtered[df_filtered['trainer'] == selected_trainer]
+    # Expandable section for Trainer Performance % and Best Performing Trainers
+    with st.expander("Detailed Trainer Performance Analysis"):
+        # Display trainer performance
+        st.subheader("Trainer Performance (% difference from overall average)")
+        st.dataframe(trainer_performance.style.format("{:.2f}%"))
+        
+        # Identify best performing trainer for each metric
+        best_trainers = trainer_performance.idxmax()
+        st.subheader("Best Performing Trainers")
+        for metric, trainer in best_trainers.items():
+            st.write(f"{metric.replace('_', ' ').title()}: {trainer} (+{trainer_performance.loc[trainer, metric]:.2f}%)")
     
-    improvement = trainer_data.groupby(['player', 'date'])[metric].mean().unstack(level=0)
-    fig = px.line(improvement, x=improvement.index, y=improvement.columns, title=f"Athlete {metric.replace('_', ' ').title()} Improvement")
-    st.plotly_chart(fig)
+    # Trainer Performance by Athlete Level
+    st.subheader("Trainer Performance by Athlete Level")
+    level_metric = st.selectbox("Select metric for level comparison", ['bat_speed', 'exit_velo', 'smash_factor', 'swing_plus', 'swing_decision'], key='level_metric')
+    trainer_level_performance = df_filtered.groupby(['trainer', 'level'])[level_metric].mean().unstack(level=1)
+    st.bar_chart(trainer_level_performance)
 
 # Main app
 def main():
@@ -199,7 +225,7 @@ def main():
     add_logo("logo.png", height=65)
 
     # Add additional images to the sidebar
-    st.sidebar.image("logo.png", caption="Chicks Dig the Long Ball")
+    st.sidebar.image("logo.png", caption="Chicks Dig the Long Ball ")
     
     st.sidebar.title("Navigation")
     
