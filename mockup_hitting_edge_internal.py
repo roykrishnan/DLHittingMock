@@ -200,7 +200,7 @@ def trainer_trends(df):
     st.plotly_chart(fig)
     
     # Expandable section for Trainer Performance % and Best Performing Trainers
-    with st.expander("Detailed Trainer Performance Analysis"):
+    with st.expander("**Trainer Performance Analysis**"):
         # Display trainer performance
         st.subheader("Trainer Performance (% difference from overall average)")
         st.dataframe(trainer_performance.style.format("{:.2f}%"))
